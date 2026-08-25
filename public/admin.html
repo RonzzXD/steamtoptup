@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin - Steam Topup</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap wide">
+    <header class="top" style="position:relative;">
+      <div class="logo">Admin Panel</div>
+      <h1>Kelola Toko</h1>
+      <p id="whoami" style="margin-top:4px;"></p>
+      <button id="btnLogout" class="secondary" style="position:absolute; top:0; right:0; width:auto; padding:6px 14px; font-size:12px;">Logout</button>
+    </header>
+
+    <!-- ================= PRODUCTS ================= -->
+    <div class="panel">
+      <div class="step-label">Tambah Produk Toko</div>
+      <label>Nama Produk</label>
+      <input id="p_name" placeholder="mis. Sewa Akun Elden Ring - 3 Jam">
+      <label>Deskripsi</label>
+      <input id="p_desc" placeholder="opsional">
+      <label>Harga (Rp)</label>
+      <input id="p_price" type="number" placeholder="mis. 15000">
+      <button id="btnAddProduct">Simpan Produk</button>
+      <div id="addProductMsg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="step-label">Daftar Produk</div>
+      <table id="productsTable">
+        <thead><tr><th>Nama</th><th>Harga</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- ================= ACCOUNTS ================= -->
+    <div class="panel">
+      <div class="step-label">Tambah Stok Akun Steam</div>
+      <label>Untuk Produk</label>
+      <select id="a_product"></select>
+      <div class="grid-2">
+        <div>
+          <label>Label internal</label>
+          <input id="a_label" placeholder="mis. Akun A">
+        </div>
+        <div>
+          <label>Steam Username</label>
+          <input id="a_su" placeholder="username login steam">
+        </div>
+      </div>
+      <label>Steam Password</label>
+      <input id="a_sp" placeholder="password login steam">
+      <div class="grid-2">
+        <div>
+          <label>Email akun (untuk ambil kode)</label>
+          <input id="a_email" placeholder="mis. akun@gmail.com">
+        </div>
+        <div>
+          <label>Password Email (App Password)</label>
+          <input id="a_ep" placeholder="app password IMAP, bukan password biasa">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <label>IMAP Host</label>
+          <input id="a_host" placeholder="mis. imap.gmail.com">
+        </div>
+        <div>
+          <label>IMAP Port</label>
+          <input id="a_port" placeholder="993" value="993">
+        </div>
+      </div>
+      <button id="btnAddAccount">Simpan Akun</button>
+      <div id="addAccountMsg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="step-label">Daftar Stok Akun</div>
+      <table id="accountsTable">
+        <thead><tr><th>Label</th><th>Produk</th><th>Username</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- ================= ORDERS ================= -->
+    <div class="panel">
+      <div class="step-label">Order Masuk</div>
+      <table id="ordersTable">
+        <thead><tr><th>Order ID</th><th>Produk</th><th>Pembeli</th><th>Jumlah</th><th>Metode</th><th>Status</th><th>Token</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- ================= TOKENS (manual) ================= -->
+    <div class="panel">
+      <div class="step-label">Generate Token Manual (di luar order toko)</div>
+      <label>Pilih Akun</label>
+      <select id="t_account"></select>
+      <label>Catatan</label>
+      <input id="t_note" placeholder="opsional">
+      <button id="btnGenToken">Generate Token</button>
+      <div id="genTokenMsg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="step-label">Daftar Token</div>
+      <table id="tokensTable">
+        <thead><tr><th>Token</th><th>Akun</th><th>Catatan</th><th>Status</th><th>Kode Diambil</th><th>Kedaluwarsa</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- ================= CHANGE KEY ================= -->
+    <div class="panel">
+      <div class="step-label">Ganti Key Admin</div>
+      <label>Key Baru</label>
+      <input id="newKey" type="password" placeholder="minimal 6 karakter">
+      <button id="btnChangeKey" class="secondary">Ganti Key</button>
+      <div id="changeKeyMsg"></div>
+    </div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const ADMIN_TOKEN = sessionStorage.getItem('adminToken');
+
+if (!ADMIN_TOKEN) {
+  window.location.href = '/admin-login.html';
+}
+$('whoami').textContent = 'Login sebagai: ' + (sessionStorage.getItem('adminUsername') || '-');
+
+function showMsg(container, text, type) {
+  container.innerHTML = `<div class="msg ${type}">${text}</div>`;
+}
+function formatRupiah(n) { return 'Rp' + Number(n).toLocaleString('id-ID'); }
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api/admin' + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + ADMIN_TOKEN,
+      ...(opts.headers || {}),
+    },
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem('adminToken');
+    window.location.href = '/admin-login.html';
+    throw new Error('Sesi berakhir');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request gagal');
+  return data;
+}
+
+$('btnLogout').addEventListener('click', () => {
+  sessionStorage.removeItem('adminToken');
+  sessionStorage.removeItem('adminUsername');
+  window.location.href = '/admin-login.html';
+});
+
+// ---------- Products ----------
+$('btnAddProduct').addEventListener('click', async () => {
+  const body = {
+    name: $('p_name').value.trim(),
+    description: $('p_desc').value.trim(),
+    price: parseInt($('p_price').value || '0', 10),
+  };
+  if (!body.name || !body.price) return showMsg($('addProductMsg'), 'Nama & harga wajib diisi.', 'error');
+  try {
+    await api('/products', { method: 'POST', body: JSON.stringify(body) });
+    showMsg($('addProductMsg'), 'Produk berhasil ditambahkan.', 'ok');
+    $('p_name').value = ''; $('p_desc').value = ''; $('p_price').value = '';
+    await refreshAll();
+  } catch (e) { showMsg($('addProductMsg'), e.message, 'error'); }
+});
+
+async function refreshProducts() {
+  const products = await api('/products');
+  const tbody = document.querySelector('#productsTable tbody');
+  tbody.innerHTML = products.map(p => `
+    <tr>
+      <td>${p.name}</td>
+      <td>${formatRupiah(p.price)}</td>
+      <td><button class="secondary" style="width:auto;padding:4px 10px" onclick="toggleActive('${p._id}', ${!p.active})">${p.active ? 'Aktif' : 'Nonaktif'}</button></td>
+      <td><button class="secondary" style="width:auto;padding:4px 10px" onclick="deleteProduct('${p._id}')">Hapus</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="4" style="color:var(--text-dim)">Belum ada produk.</td></tr>';
+
+  const options = products.map(p => `<option value="${p._id}">${p.name}</option>`).join('');
+  $('a_product').innerHTML = options;
+}
+
+window.toggleActive = async (id, active) => {
+  await api('/products/' + id, { method: 'PATCH', body: JSON.stringify({ active }) });
+  await refreshProducts();
+};
+window.deleteProduct = async (id) => {
+  if (!confirm('Hapus produk ini? Akun yang terkait tidak ikut terhapus.')) return;
+  await api('/products/' + id, { method: 'DELETE' });
+  await refreshAll();
+};
+
+// ---------- Accounts ----------
+$('btnAddAccount').addEventListener('click', async () => {
+  const body = {
+    productId: $('a_product').value,
+    label: $('a_label').value.trim(),
+    steamUsername: $('a_su').value.trim(),
+    steamPassword: $('a_sp').value.trim(),
+    email: $('a_email').value.trim(),
+    emailPassword: $('a_ep').value.trim(),
+    imapHost: $('a_host').value.trim(),
+    imapPort: parseInt($('a_port').value || '993', 10),
+  };
+  if (!body.productId) return showMsg($('addAccountMsg'), 'Pilih produk dulu (tambahkan produk kalau belum ada).', 'error');
+  try {
+    await api('/accounts', { method: 'POST', body: JSON.stringify(body) });
+    showMsg($('addAccountMsg'), 'Akun berhasil ditambahkan.', 'ok');
+    ['a_label','a_su','a_sp','a_email','a_ep','a_host'].forEach(id => $(id).value = '');
+    $('a_port').value = '993';
+    await refreshAll();
+  } catch (e) { showMsg($('addAccountMsg'), e.message, 'error'); }
+});
+
+async function refreshAccounts() {
+  const accounts = await api('/accounts');
+  const tbody = document.querySelector('#accountsTable tbody');
+  tbody.innerHTML = accounts.map(a => `
+    <tr>
+      <td>${a.label}</td>
+      <td>${a.productName}</td>
+      <td>${a.steamUsername}</td>
+      <td><span class="pill ${a.status}">${a.status}</span></td>
+      <td><button class="secondary" style="width:auto;padding:4px 10px" onclick="deleteAccount('${a.id}')">Hapus</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" style="color:var(--text-dim)">Belum ada akun.</td></tr>';
+
+  $('t_account').innerHTML = accounts.filter(a => a.status === 'available')
+    .map(a => `<option value="${a.id}">${a.label} (${a.steamUsername})</option>`).join('')
+    || '<option value="">(tidak ada akun tersedia)</option>';
+}
+
+window.deleteAccount = async (id) => {
+  if (!confirm('Hapus akun ini?')) return;
+  await api('/accounts/' + id, { method: 'DELETE' });
+  await refreshAll();
+};
+
+// ---------- Orders ----------
+async function refreshOrders() {
+  const orders = await api('/orders');
+  const tbody = document.querySelector('#ordersTable tbody');
+  tbody.innerHTML = orders.map(o => `
+    <tr>
+      <td style="font-size:11px">${o.orderId}</td>
+      <td>${o.productName}</td>
+      <td>${o.buyerName || '-'}<br><span style="color:var(--text-dim);font-size:11px">${o.buyerContact || ''}</span></td>
+      <td>${formatRupiah(o.amount)}</td>
+      <td>${o.paymentMethod}</td>
+      <td><span class="pill ${o.status}">${o.status}</span></td>
+      <td style="font-family:Consolas,monospace;font-size:11px">${o.token || '-'}</td>
+      <td>${o.status === 'paid' || o.status === 'paid_no_stock' ? `<button class="secondary" style="width:auto;padding:4px 10px" onclick="fulfillOrder('${o.id}', '${o.productId}')">Fulfill Manual</button>` : ''}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="8" style="color:var(--text-dim)">Belum ada order.</td></tr>';
+}
+
+window.fulfillOrder = async (orderId, productId) => {
+  try {
+    const accounts = await api('/accounts');
+    const eligible = accounts.filter(a => a.status === 'available' && a.productId === productId);
+
+    if (!eligible.length) {
+      alert('Tidak ada akun berstatus "available" untuk produk ini. Tambahkan stok akun dulu di form "Tambah Stok Akun Steam".');
+      return;
+    }
+
+    const listText = eligible.map((a, i) => `${i + 1}. ${a.label} (${a.steamUsername})`).join('\n');
+    const choice = prompt(`Pilih akun untuk order ini (ketik angka):\n\n${listText}`);
+    const idx = parseInt(choice, 10) - 1;
+    if (isNaN(idx) || !eligible[idx]) return;
+
+    await api(`/orders/${orderId}/fulfill`, { method: 'POST', body: JSON.stringify({ accountId: eligible[idx].id }) });
+    alert('Order berhasil di-fulfill.');
+    await refreshAll();
+  } catch (e) {
+    alert('Gagal: ' + e.message);
+  }
+};
+
+// ---------- Tokens ----------
+$('btnGenToken').addEventListener('click', async () => {
+  const accountId = $('t_account').value;
+  const note = $('t_note').value.trim();
+  if (!accountId) return showMsg($('genTokenMsg'), 'Pilih akun dulu (tidak ada akun tersedia).', 'error');
+  try {
+    const data = await api('/tokens', { method: 'POST', body: JSON.stringify({ accountId, note }) });
+    showMsg($('genTokenMsg'), `Token dibuat: <b>${data.token}</b> (berlaku sampai ${new Date(data.expires_at).toLocaleString('id-ID')})`, 'ok');
+    $('t_note').value = '';
+    await refreshAll();
+  } catch (e) { showMsg($('genTokenMsg'), e.message, 'error'); }
+});
+
+async function refreshTokens() {
+  const tokens = await api('/tokens');
+  const tbody = document.querySelector('#tokensTable tbody');
+  tbody.innerHTML = tokens.map(t => `
+    <tr>
+      <td style="font-family:Consolas,monospace">${t.token}</td>
+      <td>${t.account_label}</td>
+      <td>${t.note || ''}</td>
+      <td><span class="pill ${t.status}">${t.status}</span></td>
+      <td>${t.code_request_count || 0}x</td>
+      <td>${new Date(t.expires_at).toLocaleString('id-ID')}</td>
+      <td><button class="secondary" style="width:auto;padding:4px 10px" onclick="deleteToken('${t.id}')">Hapus</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" style="color:var(--text-dim)">Belum ada token.</td></tr>';
+}
+
+window.deleteToken = async (id) => {
+  if (!confirm('Hapus token ini?')) return;
+  await api('/tokens/' + id, { method: 'DELETE' });
+  await refreshTokens();
+};
+
+// ---------- Change key ----------
+$('btnChangeKey').addEventListener('click', async () => {
+  const newKey = $('newKey').value;
+  if (!newKey || newKey.length < 6) return showMsg($('changeKeyMsg'), 'Key baru minimal 6 karakter.', 'error');
+  try {
+    const res = await fetch('/api/admin/auth/change-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ADMIN_TOKEN },
+      body: JSON.stringify({ newKey }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showMsg($('changeKeyMsg'), 'Key berhasil diganti. Gunakan key baru untuk login berikutnya.', 'ok');
+    $('newKey').value = '';
+  } catch (e) { showMsg($('changeKeyMsg'), e.message, 'error'); }
+});
+
+async function refreshAll() {
+  await refreshProducts();
+  await refreshAccounts();
+  await refreshOrders();
+  await refreshTokens();
+}
+
+refreshAll();
+</script>
+</body>
+</html>

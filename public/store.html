@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toko - Topup & Sewa Akun Steam</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="logo">Toko Resmi</div>
+      <h1>Topup &amp; Sewa Akun Steam</h1>
+      <p>Pilih produk, bayar pakai QRIS atau link pembayaran, token dikirim otomatis.</p>
+    </header>
+
+    <div id="productList"></div>
+
+    <!-- Modal checkout -->
+    <div id="checkoutOverlay" class="overlay" style="display:none">
+      <div class="panel" style="max-width:420px; margin:60px auto;">
+        <div class="step-label" id="checkoutTitle">Checkout</div>
+
+        <div id="checkoutForm">
+          <label>Nama</label>
+          <input id="c_name" placeholder="nama kamu (opsional)">
+          <label>WhatsApp / Kontak</label>
+          <input id="c_contact" placeholder="untuk dihubungi kalau perlu (opsional)">
+          <label>Metode Pembayaran</label>
+          <select id="c_method">
+            <option value="qris">QRIS (scan langsung)</option>
+            <option value="link">Link Pembayaran (Midtrans)</option>
+          </select>
+          <button id="btnCheckout">Bayar Sekarang</button>
+          <button class="secondary" id="btnCancelCheckout" style="margin-top:8px">Batal</button>
+          <div id="checkoutMsg"></div>
+        </div>
+
+        <div id="checkoutResult" style="display:none"></div>
+      </div>
+    </div>
+
+    <footer class="note">
+      Setelah pembayaran berhasil, token redeem otomatis muncul di halaman ini.<br>
+      Simpan token itu baik-baik untuk mengambil username, password &amp; kode verifikasi di <a href="/">halaman redeem</a>.
+    </footer>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let selectedProductId = null;
+let pollInterval = null;
+
+function formatRupiah(n) {
+  return 'Rp' + Number(n).toLocaleString('id-ID');
+}
+
+function showMsg(container, text, type) {
+  container.innerHTML = `<div class="msg ${type}">${text}</div>`;
+}
+
+async function loadProducts() {
+  const res = await fetch('/api/store/products');
+  const products = await res.json();
+  const list = $('productList');
+
+  if (!products.length) {
+    list.innerHTML = '<div class="panel" style="text-align:center;color:var(--text-dim)">Belum ada produk tersedia.</div>';
+    return;
+  }
+
+  list.innerHTML = products.map(p => `
+    <div class="panel" style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+      <div>
+        <div style="font-weight:600; font-size:15px;">${p.name}</div>
+        <div style="color:var(--text-dim); font-size:13px; margin-top:4px;">${p.description || ''}</div>
+        <div style="color:var(--accent); font-weight:700; font-size:16px; margin-top:8px;">${formatRupiah(p.price)}</div>
+      </div>
+      <button style="width:auto; padding:10px 18px; flex-shrink:0" onclick="openCheckout('${p._id}', '${p.name.replace(/'/g,"\\'")}', ${p.price})">Beli</button>
+    </div>
+  `).join('');
+}
+
+window.openCheckout = (productId, name, price) => {
+  selectedProductId = productId;
+  $('checkoutTitle').textContent = `Checkout — ${name} (${formatRupiah(price)})`;
+  $('checkoutForm').style.display = 'block';
+  $('checkoutResult').style.display = 'none';
+  $('checkoutMsg').innerHTML = '';
+  $('checkoutOverlay').style.display = 'block';
+};
+
+$('btnCancelCheckout').addEventListener('click', () => {
+  $('checkoutOverlay').style.display = 'none';
+  if (pollInterval) clearInterval(pollInterval);
+});
+
+$('btnCheckout').addEventListener('click', async () => {
+  const body = {
+    productId: selectedProductId,
+    paymentMethod: $('c_method').value,
+    buyerName: $('c_name').value.trim(),
+    buyerContact: $('c_contact').value.trim(),
+  };
+
+  $('btnCheckout').disabled = true;
+  $('btnCheckout').textContent = 'Memproses...';
+  $('checkoutMsg').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/store/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMsg($('checkoutMsg'), data.error || 'Gagal membuat order.', 'error');
+      return;
+    }
+
+    $('checkoutForm').style.display = 'none';
+    renderPaymentResult(data);
+    startPolling(data.orderId);
+  } catch (e) {
+    showMsg($('checkoutMsg'), 'Terjadi kesalahan jaringan. Coba lagi.', 'error');
+  } finally {
+    $('btnCheckout').disabled = false;
+    $('btnCheckout').textContent = 'Bayar Sekarang';
+  }
+});
+
+function renderPaymentResult(order) {
+  const box = $('checkoutResult');
+  box.style.display = 'block';
+
+  let paymentHtml = '';
+  if (order.qrisImageUrl) {
+    paymentHtml = `
+      <p style="text-align:center; color:var(--text-dim); font-size:13px;">Scan QRIS ini pakai aplikasi e-wallet/mobile banking kamu:</p>
+      <div style="text-align:center; background:#fff; padding:16px; border-radius:8px; margin:12px 0;">
+        <img src="${order.qrisImageUrl}" alt="QRIS" style="max-width:220px; width:100%;">
+      </div>
+    `;
+  } else if (order.paymentUrl) {
+    paymentHtml = `
+      <p style="text-align:center; color:var(--text-dim); font-size:13px;">Klik tombol di bawah untuk bayar (bisa pilih QRIS, e-wallet, transfer bank, dll):</p>
+      <a href="${order.paymentUrl}" target="_blank" style="display:block; text-align:center;">
+        <button style="margin-top:8px;">Buka Halaman Pembayaran</button>
+      </a>
+    `;
+  }
+
+  box.innerHTML = `
+    <div class="result-box">
+      <div class="result-row"><span class="k">Order ID</span><span class="v" style="font-size:12px">${order.orderId}</span></div>
+      <div class="result-row"><span class="k">Total</span><span class="v">${formatRupiah(order.amount)}</span></div>
+    </div>
+    ${paymentHtml}
+    <div id="statusArea" style="margin-top:14px;">
+      <div class="msg" style="background:rgba(102,192,244,0.1); color:var(--accent); border:1px solid var(--accent-dim);">
+        Menunggu pembayaran... halaman ini akan update otomatis.
+      </div>
+    </div>
+  `;
+}
+
+function startPolling(orderId) {
+  if (pollInterval) clearInterval(pollInterval);
+
+  pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/store/orders/${orderId}`);
+      const data = await res.json();
+      if (!res.ok) return;
+
+      const statusArea = $('statusArea');
+      if (!statusArea) return;
+
+      if (data.status === 'fulfilled' && data.token) {
+        clearInterval(pollInterval);
+        statusArea.innerHTML = `
+          <div class="msg ok">Pembayaran berhasil! Token kamu:</div>
+          <div class="result-box">
+            <div class="code-display" style="font-size:22px; letter-spacing:2px;">${data.token}</div>
+          </div>
+          <a href="/"><button style="margin-top:10px;">Buka Halaman Redeem</button></a>
+        `;
+      } else if (data.status === 'paid_no_stock') {
+        clearInterval(pollInterval);
+        statusArea.innerHTML = `<div class="msg" style="background:rgba(240,180,60,0.1); color:#e0b84c; border:1px solid #7a5f22;">Pembayaran diterima, tapi stok akun sedang kosong. Admin akan segera memprosesnya secara manual, hubungi penjual kalau perlu bantuan.</div>`;
+      } else if (data.status === 'failed' || data.status === 'expired') {
+        clearInterval(pollInterval);
+        statusArea.innerHTML = `<div class="msg error">Pembayaran ${data.status === 'expired' ? 'kedaluwarsa' : 'gagal'}. Silakan coba checkout ulang.</div>`;
+      }
+    } catch (e) {
+      // diamkan, coba lagi di interval berikutnya
+    }
+  }, 4000);
+}
+
+loadProducts();
+</script>
+
+<style>
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  overflow-y: auto; z-index: 50;
+}
+</style>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login Admin - Steam Topup</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="logo">Admin Panel</div>
+      <h1>Login Admin</h1>
+      <p>Masuk pakai username &amp; key admin.</p>
+    </header>
+
+    <div class="panel">
+      <label for="username">Username</label>
+      <input id="username" placeholder="username admin" autocomplete="username">
+      <label for="key">Key</label>
+      <input id="key" type="password" placeholder="key admin" autocomplete="current-password">
+      <button id="btnLogin">Masuk</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function showMsg(text, type) {
+  $('msg').innerHTML = `<div class="msg ${type}">${text}</div>`;
+}
+
+// Kalau sudah login (token masih ada), langsung ke admin.html
+if (sessionStorage.getItem('adminToken')) {
+  window.location.href = '/admin.html';
+}
+
+async function doLogin() {
+  const username = $('username').value.trim();
+  const key = $('key').value;
+  if (!username || !key) return showMsg('Username dan key wajib diisi.', 'error');
+
+  $('btnLogin').disabled = true;
+  $('btnLogin').textContent = 'Memproses...';
+
+  try {
+    const res = await fetch('/api/admin/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, key }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMsg(data.error || 'Login gagal.', 'error');
+      return;
+    }
+
+    sessionStorage.setItem('adminToken', data.token);
+    sessionStorage.setItem('adminUsername', data.username);
+    window.location.href = '/admin.html';
+  } catch (e) {
+    showMsg('Terjadi kesalahan jaringan. Coba lagi.', 'error');
+  } finally {
+    $('btnLogin').disabled = false;
+    $('btnLogin').textContent = 'Masuk';
+  }
+}
+
+$('btnLogin').addEventListener('click', doLogin);
+$('key').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>

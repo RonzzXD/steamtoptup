@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redeem Token - Sewa Akun Steam</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="logo">Topup &amp; Sewa Akun</div>
+      <h1>Redeem Token Kamu</h1>
+      <p>Masukkan token yang diberikan penjual untuk mengambil data akun.</p>
+    </header>
+
+    <div style="text-align:center; margin-bottom:20px;">
+      <a href="/store.html" style="font-size:13px;">← Belum punya token? Beli di Toko</a>
+    </div>
+
+    <div class="panel">
+      <div class="step-label">Langkah 1 — Ambil Username &amp; Password</div>
+      <label for="token1">Token</label>
+      <input id="token1" placeholder="contoh: aZ3kP9xQ2mT" autocomplete="off">
+      <button id="btnStep1">Tampilkan Username &amp; Password</button>
+      <div id="step1Result"></div>
+    </div>
+
+    <div class="panel" id="step2Panel" style="display:none">
+      <div class="step-label">Langkah 2 — Ambil Kode Verifikasi</div>
+      <p style="color:var(--text-dim); font-size:13px; margin-top:-4px;">
+        Login dulu ke Steam pakai username &amp; password di atas. Setelah Steam meminta kode Steam Guard,
+        masukkan token yang sama di bawah ini untuk mengambil kodenya dari email.
+      </p>
+      <label for="token2">Token</label>
+      <input id="token2" placeholder="token yang sama seperti di atas" autocomplete="off">
+      <button id="btnStep2">Ambil Kode Verifikasi</button>
+      <div id="step2Result"></div>
+    </div>
+
+    <footer class="note">
+      Token bersifat sekali pakai untuk satu transaksi dan otomatis kedaluwarsa.<br>
+      Jangan bagikan token ke orang lain.
+    </footer>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function showMsg(container, text, type) {
+  container.innerHTML = `<div class="msg ${type}">${text}</div>`;
+}
+
+$('btnStep1').addEventListener('click', async () => {
+  const token = $('token1').value.trim();
+  const box = $('step1Result');
+  box.innerHTML = '';
+  if (!token) return showMsg(box, 'Token wajib diisi.', 'error');
+
+  $('btnStep1').disabled = true;
+  $('btnStep1').textContent = 'Memproses...';
+
+  try {
+    const res = await fetch('/api/redeem/credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMsg(box, data.error || 'Gagal redeem token.', 'error');
+    } else {
+      box.innerHTML = `
+        <div class="result-box">
+          <div class="result-row"><span class="k">Username</span><span class="v">${data.steam_username}</span></div>
+          <div class="result-row"><span class="k">Password</span><span class="v">${data.steam_password}</span></div>
+        </div>
+      `;
+      $('token2').value = token;
+      $('step2Panel').style.display = 'block';
+      $('step2Panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } catch (e) {
+    showMsg(box, 'Terjadi kesalahan jaringan. Coba lagi.', 'error');
+  } finally {
+    $('btnStep1').disabled = false;
+    $('btnStep1').textContent = 'Tampilkan Username & Password';
+  }
+});
+
+$('btnStep2').addEventListener('click', async () => {
+  const token = $('token2').value.trim();
+  const box = $('step2Result');
+  box.innerHTML = '';
+  if (!token) return showMsg(box, 'Token wajib diisi.', 'error');
+
+  $('btnStep2').disabled = true;
+  $('btnStep2').textContent = 'Mengambil kode dari email...';
+
+  try {
+    const res = await fetch('/api/redeem/code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMsg(box, data.error || 'Gagal mengambil kode.', 'error');
+    } else {
+      const remainingNote = typeof data.remaining_requests === 'number'
+        ? `<p style="color:var(--text-dim); font-size:12px; text-align:center; margin-top:8px;">Sisa jatah ambil kode untuk token ini: ${data.remaining_requests}x</p>`
+        : '';
+      box.innerHTML = `<div class="result-box"><div class="code-display">${data.code}</div></div>${remainingNote}`;
+    }
+  } catch (e) {
+    showMsg(box, 'Terjadi kesalahan jaringan. Coba lagi.', 'error');
+  } finally {
+    $('btnStep2').disabled = false;
+    $('btnStep2').textContent = 'Ambil Kode Verifikasi';
+  }
+});
+</script>
+</body>
+</html>
