@@ -1,6 +1,6 @@
 # 🎮 Toko Topup & Jasa Sewa Akun Steam 
 
-Aplikasi web (*Full-Stack*) berbasis Node.js dan MongoDB untuk mempermudah top-up atau sewa akun Steam. Dilengkapi dengan integrasi otomatisasi pembayaran via Midtrans dan penarikan kode **Steam Guard** langsung dari email.
+Aplikasi web (*Full-Stack*) berbasis Node.js dan MongoDB untuk mempermudah top-up atau sewa akun Steam. Dilengkapi dengan integrasi otomatisasi pembayaran via trakteer dan penarikan kode **Steam Guard** langsung dari email.
 
 ---
 
