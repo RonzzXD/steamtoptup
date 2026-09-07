@@ -1,4 +1,4 @@
-# 🎮 Toko Topup & Jasa Sewa Akun Steam (Payment Gateway Midtrans)
+# 🎮 Toko Topup & Jasa Sewa Akun Steam 
 
 Aplikasi web (*Full-Stack*) berbasis Node.js dan MongoDB untuk mempermudah top-up atau sewa akun Steam. Dilengkapi dengan integrasi otomatisasi pembayaran via Midtrans dan penarikan kode **Steam Guard** langsung dari email.
 
@@ -56,9 +56,6 @@ Buka file `.env` dan lengkapi variabel berikut sesuai dengan kebutuhan Anda:
         ```bash
         node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
         ```
-*   **Midtrans API:**
-    *   Masukkan `MIDTRANS_SERVER_KEY` dan `MIDTRANS_CLIENT_KEY` yang didapat dari Dashboard Midtrans (Mode Sandbox untuk uji coba).
-    *   *Penting saat Testing Lokal:* Karena Midtrans membutuhkan URL publik untuk mengirim notifikasi pembayaran (*webhook*), gunakan [ngrok](https://ngrok.com). Jalankan `ngrok http 3000`, lalu salin URL *https* yang diberikan ke pengaturan Webhook Midtrans dengan format: `https://<id-ngrok-anda>.ngrok-free.app/api/payment/notification`.
 
 ### 3. Konfigurasi Email Akun Steam (IMAP)
 Saat memasukkan "Password Email" di panel admin, **jangan gunakan password login biasa**. Anda wajib menggunakan **App Password**:
@@ -77,20 +74,8 @@ Aplikasi Anda kini dapat diakses melalui peramban pada tautan berikut:
 *   **Halaman Login Admin:** `http://localhost:3000/admin-login.html`
 
 ---
-
-## 🧪 Pengujian Offline (Tanpa Kredensial Asli)
-
-Proyek ini menyediakan skrip pengujian mandiri untuk memastikan fungsi-fungsi internal berjalan dengan baik tanpa perlu terhubung ke API eksternal:
-
-```bash
-node test-midtrans-signature.js   # Memverifikasi kecocokan signature webhook Midtrans
-node test-admin-auth.js           # Menguji sistem enkripsi bcrypt dan pembuatan JWT
-node test-code-extraction.js      # Menguji regex penarik kode Steam Guard dari teks email
-node test-imap-connection.js      # Menguji stabilitas koneksi protokol IMAP ke server email
 ```
-
 ---
-
 ## 🔒 Catatan Keamanan
 
 1. **Enkripsi Data Sensitf:** Pada versi dasar ini, password akun Steam dan App Password email disimpan dalam bentuk *plain-text* di database. Untuk kebutuhan produksi skala besar, sangat disarankan menambahkan enkripsi dua arah (misal menggunakan modul `crypto` bawaan Node.js).
