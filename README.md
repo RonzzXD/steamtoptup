@@ -12,20 +12,6 @@ Web app lengkap untuk jasa topup/sewa akun Steam:
 Database pakai **MongoDB**. Password admin (**key**) disimpan ter-hash (bcrypt), bukan
 plain-text. Login admin memakai sesi **JWT** yang kedaluwarsa otomatis dalam 12 jam.
 
-## ⚠️ Batasan pengujian oleh saya (baca ini dulu)
-
-Saya sudah menguji:
-- Semua file lolos cek sintaks & bisa di-`require()` tanpa error (`node --check`, load semua model/route)
-- Logic verifikasi signature webhook Midtrans (`test-midtrans-signature.js`) — lolos
-- Logic hash key admin & sesi JWT (`test-admin-auth.js`) — lolos
-- Logic pembaca kode Steam Guard dari email (`test-code-extraction.js`) — lolos
-
-**Yang BELUM bisa saya uji** (karena sandbox saya tidak bisa konek ke MongoDB Atlas atau
-API Midtrans yang sebenarnya): koneksi database sungguhan, pembuatan transaksi QRIS/Payment
-Link yang sebenarnya, dan penerimaan webhook dari Midtrans. Ini perlu dites sendiri pakai
-kredensial MongoDB & Midtrans (sandbox) milik Anda — ikuti panduan di bawah langkah demi
-langkah, dan kabari kalau ada error supaya bisa saya bantu perbaiki.
-
 ## Instalasi
 
 ```bash
